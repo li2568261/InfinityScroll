@@ -1,0 +1,34 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <style>
+    li{
+      height: 100px;
+      margin: 0;
+      padding: 0;
+      background: #614092;
+      border-top: 1px solid #000;
+    }
+    .scroll-list{
+      height: 500px;
+      overflow: auto;
+    }
+  </style>
+  <ul class="scroll-list">
+    <li>lee-scroll</li>
+  </ul>
+  <script src="./scrollList.js"></script>
+  <script>
+    new InfinityScroll({
+      el: document.querySelector('.scroll-list'),
+      itemModel: function(data, index){return `<li>${data.name} ${index}</li>`},
+      listData: new Array(40).fill({name: 'lee'})
+    })
+  </script>
+</body>
+</html>
