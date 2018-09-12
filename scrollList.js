@@ -1,3 +1,6 @@
+// 创建一个documentFragment
+var oDocumentFeagment = document.createDocumentFragment();
+
 //创建一个中介div
 var objE;
 function createTempUl(){
@@ -55,19 +58,26 @@ function InfinityScroll(option){
   this.itemModel // item回调函数
   this.listData // listData
   this._warpHeight // 容器元素高度
-  this._itemHeight // 子元素高度
-  this._limit // 每屏渲染数目
+  this._beginIndex = 0; // 起始index
+  this._endIndex = 0; // 终止index
   this._contentLi // 所有渲染子元素数组
+  this._countHeight = 0 // 所有渲染子元素的总高度
   this._topGuard // 头部撑开高度元素
-  this._tailGuard // 尾部撑开高度元素
 
   this.init(option);
 }
 
 const init = function(option){
   this.el = query(option.el);
-  this.itemModel = option.itemModel;
-  this.listData = option.listData;
+  
+  if(option.itemModel && typeof option.itemModel === 'function'){
+    this.itemModel = option.itemModel;
+  } else {
+    console.error('itemModel is required, typeof function');
+    this.itemModel = new Function();;
+  }
+
+  this.listData = option.listData || [];
   
   
   // 防止不设置不滚动
@@ -93,13 +103,7 @@ InfinityScroll.prototype.setWarpHeight = function(){
   this._warpHeight = getEleHeight(this.el);
 }
 
-InfinityScroll.prototype.setItemWidth = function(el){
-  this._itemHeight = getEleHeight(el);
-  // + 4是为了上下各预留一个预备元素
-  this._limit = Math.ceil(this._warpHeight / this._itemHeight) + 4;
-}
-
-// 根据当前视口创建相应数量dom
+// 渲染当前itemd
 InfinityScroll.prototype.createItemDom = function(data, index){ 
   return parseDom(this.itemModel(data, index))[0];
 }
@@ -107,88 +111,104 @@ InfinityScroll.prototype.createItemDom = function(data, index){
 InfinityScroll.prototype.firstRender = function(){
   // 清空html
   this.el.innerHTML = ''; 
-  var oDocumentFeagment = document.createDocumentFragment();//创建documenFragment
-  var _this = this;
-  this._contentLi = [];
-  // 首次渲染列表，计算出当前属性
-  const firstEl = this.createItemDom(this.listData[0], 0);
-  this.setItemWidth(firstEl);
-  oDocumentFeagment.append(firstEl);
-  // 存入所有展示的元素
-  this._contentLi.push(firstEl);
-
-  //渲染出若干条
-  this.listData.slice(1,this._limit).forEach(function(data, index){
-    var itemEl =  _this.createItemDom(data, index + 1);
-    oDocumentFeagment.append(itemEl);
-    _this._contentLi.push(itemEl);
-  })
   
+  this._contentLi = [];
+
+  var _this = this;
+  
+  // 渲染两屏防止渲染不及时出现空白区
+  while(this._endIndex < this.listData.length && this._countHeight < this._warpHeight * 3){
+    // 依次渲染
+    var itemEl =  _this.createItemDom(this.listData[this._endIndex], this._endIndex);
+    this._countHeight += getEleHeight(itemEl);
+    oDocumentFeagment.append(itemEl);
+    this._contentLi.push(itemEl);
+    this._endIndex++;
+  }
+
   this.el.append(oDocumentFeagment)
   this.setGuard();
 }
 
-// 插入收尾撑开的元素
+// 插入头部撑开的元素
 InfinityScroll.prototype.setGuard = function(){
 
   this._topGuard = document.createElement('div');
   this._topGuard.style.height = 0;
 
-  this._tailGuard = document.createElement('div');
-  this._tailGuard.style.height = this._itemHeight * (this.listData.length - this._limit) + 'px' ;
-
   this.el.insertBefore(this._topGuard,this._contentLi[0]);
-  this.el.append(this._tailGuard);
 }
 
+InfinityScroll.prototype.renderSpillItem = function(tail,height){
+  var splillHeight = 0;
+  var _this = this;
+  var renderTail = function(){
+    while(splillHeight < height && _this._endIndex < _this.listData.length){
+      var itemEl =  _this.createItemDom(_this.listData[_this._endIndex], _this._endIndex);
+      splillHeight += getEleHeight(itemEl);
+      oDocumentFeagment.append(itemEl);
+      _this._contentLi.push(itemEl);
+      _this._endIndex++;
+      _this.el.append(oDocumentFeagment);
+    }
+  }
+  var renderTop = function(){
+    while(splillHeight < height && _this._beginIndex > 0){
+      var itemEl =  _this.createItemDom(_this.listData[_this._beginIndex - 1], _this._beginIndex - 1);
+      splillHeight += getEleHeight(itemEl);
+      oDocumentFeagment.append(itemEl);
+      _this.el.insertBefore(oDocumentFeagment, _this._contentLi[0]);
+      _this._contentLi.unshift(itemEl);
+      _this._endIndex--;
+    }
+  }
+  tail ? renderTail() : renderTop();
+  this._countHeight+=splillHeight;
+
+}
 InfinityScroll.prototype.initScrollLisener = function(){
-  var scrollPosition = 0;
+  // 触发向下滚动
+  var triggerTopScrollHeight = this._warpHeight;
+  // TODO:预留后期制定index渲染
+  var topGruarHeight = getEleHeight(this._topGuard);
+
   var _this = this;
   this.el.addEventListener('scroll',function(e){
-    
-    var diffScroll = e.target.scrollTop - (scrollPosition + 1) * _this._itemHeight;
-
-    if(Math.abs(diffScroll) > _this._itemHeight){
+    console.log(e.target.scrollTop, triggerTopScrollHeight)
       //向上滚动
-      if(diffScroll > 0){
-        // 记录当前视口,建个新的
-        var dataIndex = scrollPosition + _this._limit;
-        // 到底不加载
-        if(dataIndex >= _this.listData.length)return;
-        var newItem = _this.createItemDom(_this.listData[dataIndex], dataIndex);
-
-        // 头部守卫撑开一个高度
-        // 移除头
-        _this._topGuard.style.height = getEleHeight(_this._topGuard) + getEleHeight(_this._contentLi[0]) + 'px';
-        _this.el.removeChild(_this._contentLi[0]);
-        _this._contentLi.shift();
-        // 保持当前滚动条位置不变
-        // 插入尾
-        _this.el.insertBefore(newItem,_this._tailGuard);
-        _this._tailGuard.style.height = getEleHeight(_this._tailGuard) - getEleHeight(newItem) + 'px';
-        _this._contentLi.push(newItem);
-        scrollPosition++;
-      } else{
+    if(e.target.scrollTop > triggerTopScrollHeight){
+      // 记录当前视口,建个新的
+      // 到底不加载
+      if(_this._endIndex === _this.listData.length)return;
+      var delEleHeight = getEleHeight(_this._contentLi[0]);
+      _this.renderSpillItem(true, delEleHeight);
+      // 头部守卫撑开一个高度
+      // 移除头
+      topGruarHeight += delEleHeight;
+      _this._topGuard.style.height = topGruarHeight + 'px';
+      _this.el.removeChild(_this._contentLi.shift());
+      triggerTopScrollHeight = topGruarHeight + getEleHeight(_this._contentLi[1]);
+      _this._beginIndex++;
+    } else{
+      // 滚动太快防止时间没有捕获到
+      while(e.target.scrollTop <= topGruarHeight && _this._beginIndex > 0){
         // 向下滚动
-        var dataIndex = scrollPosition - 1;
         // 到顶不加载
-        if(dataIndex === -1)return;
-        var newItem = _this.createItemDom(_this.listData[dataIndex], dataIndex);
+        var delEleHeight = getEleHeight(_this._contentLi[_this._contentLi.length - 1]);
+        _this.renderSpillItem(false, delEleHeight);
+        topGruarHeight -= getEleHeight(_this._contentLi[0]);
 
-        // 删除尾
-        _this._tailGuard.style.height = getEleHeight(_this._tailGuard)
-                                          + getEleHeight(_this._contentLi[_this._contentLi.length - 1]) + 'px';
-        _this.el.removeChild(_this._contentLi[_this._contentLi.length - 1]);
-        _this._contentLi.pop();
         // 保持当前显示距离不变
         // 头部守卫撑开一个高度
         // 移除头
-        _this.el.insertBefore(newItem,_this._contentLi[0]);
-        _this._topGuard.style.height = getEleHeight(_this._topGuard) - getEleHeight(newItem) + 'px';
-        _this._contentLi.unshift(newItem);
+        triggerTopScrollHeight = topGruarHeight + getEleHeight(_this._contentLi[1]);
+        _this._topGuard.style.height = topGruarHeight + 'px';
+        _this.el.removeChild(_this._contentLi.pop());
         
-        scrollPosition--;
+        _this._beginIndex--;
       }
+      
+      
     }
-  },false)
+  })
 }

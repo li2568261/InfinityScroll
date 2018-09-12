@@ -8,11 +8,19 @@
 <body>
   <style>
     li{
-      height: 100px;
+      height: 40px;
       margin: 0;
       padding: 0;
       background: #614092;
       border-top: 1px solid #000;
+    }
+    li.two{
+      height: 90px;
+      background: #50bfff;
+    }
+    li.three{
+      height: 120px;
+      background: rgb(233, 104, 107);
     }
     .scroll-list{
       height: 500px;
@@ -24,10 +32,13 @@
   </ul>
   <script src="./scrollList.js"></script>
   <script>
+   var className = ['', 'two', 'three'];
     new InfinityScroll({
       el: document.querySelector('.scroll-list'),
-      itemModel: function(data, index){return `<li>${data.name} ${index}</li>`},
-      listData: new Array(40).fill({name: 'lee'})
+      itemModel: function(data, index){
+        return `<li class='${className[index%3]}'>${data.name} ${index}</li>`
+      },
+      listData: new Array(100).fill({name: 'lee'})
     })
   </script>
 </body>
