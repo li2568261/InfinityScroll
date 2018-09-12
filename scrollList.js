@@ -174,8 +174,7 @@ InfinityScroll.prototype.initScrollLisener = function(){
 
   var _this = this;
   this.el.addEventListener('scroll',function(e){
-    console.log(e.target.scrollTop, triggerTopScrollHeight)
-      //向上滚动
+    //向上滚动
     if(e.target.scrollTop > triggerTopScrollHeight){
       // 记录当前视口,建个新的
       // 到底不加载
